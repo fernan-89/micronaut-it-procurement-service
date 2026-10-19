@@ -92,7 +92,7 @@ public class PurchaseOrderMongoRepositoryAdapter implements PurchaseOrderReposit
     }
 
     @Override
-    public Flux<PurchaseOrder> findAll(UUID organisationId, Status status, UUID vendorId, Currency currency, LocalDate expectedBefore, int limit) {
+    public Flux<PurchaseOrder> findAll(UUID organisationId, Status status, UUID vendorId, Currency currency, LocalDate expectedBefore, Instant changedSince, int limit) {
         List<Bson> filters = new ArrayList<>();
         filters.add(Filters.eq(FIELD_ORGANISATION, organisationId));
         if (status != null) {
@@ -106,6 +106,9 @@ public class PurchaseOrderMongoRepositoryAdapter implements PurchaseOrderReposit
         }
         if (expectedBefore != null) {
             filters.add(Filters.lt("expectedOn", expectedBefore.toString()));
+        }
+        if (changedSince != null) {
+            filters.add(Filters.gte("updatedAt", changedSince));
         }
         return Flux.from(getCollection().find(Filters.and(filters)).sort(Sorts.descending("createdAt")).limit(limit)).map(PurchaseOrderPersistenceMapper::toDomain);
     }

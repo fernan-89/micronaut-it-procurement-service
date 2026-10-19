@@ -205,6 +205,8 @@ class ProcurementPersistenceIT implements TestPropertyProvider {
         assertEquals(2, orders.findAll(org, null, null, null, TODAY.plusDays(31), 50).count().block());
         assertEquals(0, orders.findAll(org, null, null, null, TODAY.plusDays(30), 50).count().block());
         assertEquals(1, orders.findAll(org, null, null, null, null, 1).count().block());
+        assertEquals(2, orders.findAll(org, null, null, null, null, Instant.now().minusSeconds(3600), 50).count().block());
+        assertEquals(0, orders.findAll(org, null, null, null, null, Instant.now().plusSeconds(3600), 50).count().block());
     }
 
     @Test

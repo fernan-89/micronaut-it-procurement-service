@@ -8,6 +8,7 @@ import com.thinklab.domain.model.PurchaseOrder.Status;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.UUID;
 
@@ -21,9 +22,14 @@ public interface PurchaseOrderRepository {
 
     /**
      * The tenant's orders, newest first, at most {@code limit}; every filter that is not null narrows the list. {@code expectedBefore} keeps the orders whose expected
-     * delivery is before that day. What was received and whether an order is late are judged when read, so the caller asks for the placed orders and judges them.
+     * delivery is before that day; {@code changedSince} keeps the orders last changed at or after that moment. What was received and whether an order is late are
+     * judged when read, so the caller asks for the placed orders and judges them.
      */
-    Flux<PurchaseOrder> findAll(UUID organisationId, Status status, UUID vendorId, Currency currency, LocalDate expectedBefore, int limit);
+    Flux<PurchaseOrder> findAll(UUID organisationId, Status status, UUID vendorId, Currency currency, LocalDate expectedBefore, Instant changedSince, int limit);
+
+    default Flux<PurchaseOrder> findAll(UUID organisationId, Status status, UUID vendorId, Currency currency, LocalDate expectedBefore, int limit) {
+        return findAll(organisationId, status, vendorId, currency, expectedBefore, null, limit);
+    }
 
     /**
      * Saves the change of status, the approval request and the moment of the order, guarded on the status loaded; the lines are written only for a draft (once placed,

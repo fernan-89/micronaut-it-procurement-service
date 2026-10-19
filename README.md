@@ -29,7 +29,7 @@ what arrived. The registry says, **when you ask**, how much of an order has arri
 |---|---|
 | initiate | `POST /it-procurement/v1/initiate` `{"reference":"PO-2026-001","vendorId":"<uuid>","requesterId":"<uuid>","currency":"BRL","expectedOn":"2026-11-30","lines":[{"category":"HARDWARE","item":"LAP-14","quantity":10,"unitPrice":1500.00}]}` |
 | retrieve | `GET /it-procurement/v1/{id}/retrieve` (judged now) |
-| retrieve (collection) | `GET /it-procurement/v1/retrieve?status=&vendorId=&currency=&fulfilment=&late=&limit=` (newest first, 100 unless asked, at most 500) |
+| retrieve (collection) | `GET /it-procurement/v1/retrieve?status=&vendorId=&currency=&fulfilment=&late=&changedWithinDays=&limit=` (newest first, 100 unless asked, at most 500; `changedWithinDays` 1 to 365 keeps the orders last changed within that many days) |
 | update | `PUT /it-procurement/v1/{id}/update` `{"vendorId":"<uuid>","expectedOn":null,"lines":[...]}` (a draft only; all the lines again) |
 | control/submit | `PUT /it-procurement/v1/{id}/control/submit` (DRAFT -> PENDING_APPROVAL; files the approval) |
 | approval/capture | `PUT /it-procurement/v1/{id}/approval/capture` `{"approverId":"<uuid>","outcome":"APPROVE"}` (answers the order after the decision) |

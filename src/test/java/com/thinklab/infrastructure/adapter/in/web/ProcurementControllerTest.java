@@ -76,7 +76,7 @@ class ProcurementControllerTest {
         UUID vendor = UUID.randomUUID();
         when(initiate.execute(tenant, request, EXECUTOR, ROLE)).thenReturn(Mono.just(response()));
         when(retrieveOne.execute(id, tenant, ROLE)).thenReturn(Mono.just(response()));
-        when(retrieveAll.execute(tenant, Status.ORDERED, vendor, Currency.BRL, Fulfilment.PARTIAL, true, 10, ROLE)).thenReturn(Flux.just(response()));
+        when(retrieveAll.execute(tenant, Status.ORDERED, vendor, Currency.BRL, Fulfilment.PARTIAL, true, 7, 10, ROLE)).thenReturn(Flux.just(response()));
         when(update.execute(id, tenant, change, EXECUTOR, ROLE)).thenReturn(Mono.empty());
         when(submit.execute(id, tenant, EXECUTOR, ROLE)).thenReturn(Mono.empty());
         when(control.execute(id, tenant, ControlPurchaseOrderUseCase.Action.PLACE, EXECUTOR, ROLE)).thenReturn(Mono.empty());
@@ -84,7 +84,7 @@ class ProcurementControllerTest {
 
         StepVerifier.create(controller().initiate(tenantHeader, EXECUTOR, ROLE, request)).assertNext(r -> assertEquals(HttpStatus.CREATED, r.getStatus())).verifyComplete();
         StepVerifier.create(controller().retrieve(id, tenantHeader, ROLE)).assertNext(r -> assertEquals(HttpStatus.OK, r.getStatus())).verifyComplete();
-        StepVerifier.create(controller().retrieveAll(tenantHeader, ROLE, Status.ORDERED, vendor, Currency.BRL, Fulfilment.PARTIAL, true, 10)).assertNext(l -> assertEquals(1, l.size())).verifyComplete();
+        StepVerifier.create(controller().retrieveAll(tenantHeader, ROLE, Status.ORDERED, vendor, Currency.BRL, Fulfilment.PARTIAL, true, 7, 10)).assertNext(l -> assertEquals(1, l.size())).verifyComplete();
         StepVerifier.create(controller().update(id, tenantHeader, EXECUTOR, ROLE, change)).assertNext(r -> assertEquals(HttpStatus.NO_CONTENT, r.getStatus())).verifyComplete();
         StepVerifier.create(controller().submit(id, tenantHeader, EXECUTOR, ROLE)).assertNext(r -> assertEquals(HttpStatus.NO_CONTENT, r.getStatus())).verifyComplete();
         StepVerifier.create(controller().place(id, tenantHeader, EXECUTOR, ROLE)).assertNext(r -> assertEquals(HttpStatus.NO_CONTENT, r.getStatus())).verifyComplete();
