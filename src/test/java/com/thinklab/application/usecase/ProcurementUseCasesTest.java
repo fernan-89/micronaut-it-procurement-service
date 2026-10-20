@@ -329,32 +329,45 @@ class ProcurementUseCasesTest {
         PurchaseOrder complete = placed();
         complete.receive(1, "DN-1", 10, "d", NOW);
         complete.receive(2, "DN-2", 5, "d", NOW);
-        when(repository.findAll(eq(org), any(), any(), any(), any(), anyInt())).thenReturn(Flux.just(late, fresh, complete));
+        when(repository.findAll(eq(org), any(), any(), any(), any(), any(), anyInt())).thenReturn(Flux.just(late, fresh, complete));
         RetrievePurchaseOrdersUseCase list = new RetrievePurchaseOrdersUseCase(repository, clock);
 
-        StepVerifier.create(list.execute(org, null, null, null, null, null, null, STAFF)).expectNextCount(3).verifyComplete();
-        verify(repository).findAll(org, null, null, null, null, 100);
-        StepVerifier.create(list.execute(org, Status.DRAFT, vendor, Currency.BRL, null, null, 9999, STAFF)).expectNextCount(3).verifyComplete();
-        verify(repository).findAll(org, Status.DRAFT, vendor, Currency.BRL, null, 500);
-        StepVerifier.create(list.execute(org, null, null, null, null, null, 0, STAFF)).expectNextCount(1).verifyComplete();
-        StepVerifier.create(list.execute(org, null, null, null, Fulfilment.COMPLETE, null, 10, STAFF)).assertNext(response -> assertEquals("COMPLETE", response.fulfilment())).verifyComplete();
-        verify(repository).findAll(org, Status.ORDERED, null, null, null, RetrievePurchaseOrdersUseCase.JUDGED);
-        StepVerifier.create(list.execute(org, null, null, null, null, true, 10, STAFF)).assertNext(response -> assertTrue(response.late())).verifyComplete();
-        verify(repository).findAll(org, Status.ORDERED, null, null, null, RetrievePurchaseOrdersUseCase.JUDGED);
-        StepVerifier.create(list.execute(org, null, null, null, null, false, 10, STAFF)).expectNextCount(2).verifyComplete();
-        StepVerifier.create(list.execute(org, Status.ORDERED, null, null, Fulfilment.NONE, null, 10, STAFF)).expectNextCount(2).verifyComplete();
-        StepVerifier.create(list.execute(org, Status.DRAFT, null, null, Fulfilment.NONE, null, 10, STAFF)).verifyComplete();
-        assertThrows(ProcurementAccessDeniedException.class, () -> list.execute(org, null, null, null, null, null, null, REQUESTER).blockLast());
+        StepVerifier.create(list.execute(org, null, null, null, null, null, null, null, STAFF)).expectNextCount(3).verifyComplete();
+        verify(repository).findAll(org, null, null, null, null, null, 100);
+        StepVerifier.create(list.execute(org, Status.DRAFT, vendor, Currency.BRL, null, null, null, 9999, STAFF)).expectNextCount(3).verifyComplete();
+        verify(repository).findAll(org, Status.DRAFT, vendor, Currency.BRL, null, null, 500);
+        StepVerifier.create(list.execute(org, null, null, null, null, null, null, 0, STAFF)).expectNextCount(1).verifyComplete();
+        StepVerifier.create(list.execute(org, null, null, null, Fulfilment.COMPLETE, null, null, 10, STAFF)).assertNext(response -> assertEquals("COMPLETE", response.fulfilment())).verifyComplete();
+        verify(repository).findAll(org, Status.ORDERED, null, null, null, null, RetrievePurchaseOrdersUseCase.JUDGED);
+        StepVerifier.create(list.execute(org, null, null, null, null, true, null, 10, STAFF)).assertNext(response -> assertTrue(response.late())).verifyComplete();
+        verify(repository).findAll(org, Status.ORDERED, null, null, null, null, RetrievePurchaseOrdersUseCase.JUDGED);
+        StepVerifier.create(list.execute(org, null, null, null, null, false, null, 10, STAFF)).expectNextCount(2).verifyComplete();
+        StepVerifier.create(list.execute(org, Status.ORDERED, null, null, Fulfilment.NONE, null, null, 10, STAFF)).expectNextCount(2).verifyComplete();
+        StepVerifier.create(list.execute(org, Status.DRAFT, null, null, Fulfilment.NONE, null, null, 10, STAFF)).verifyComplete();
+        assertThrows(ProcurementAccessDeniedException.class, () -> list.execute(org, null, null, null, null, null, null, null, REQUESTER).blockLast());
+    }
+
+    @Test
+    @DisplayName("what changed within some days is asked of the store as a moment (1 to 365 days); another number is refused")
+    void changedWithin() {
+        when(repository.findAll(any(), any(), any(), any(), any(), any(), anyInt())).thenReturn(Flux.empty());
+        RetrievePurchaseOrdersUseCase list = new RetrievePurchaseOrdersUseCase(repository, clock);
+
+        StepVerifier.create(list.execute(org, null, null, null, null, null, 7, 50, STAFF)).verifyComplete();
+
+        verify(repository).findAll(org, null, null, null, null, NOW.minusSeconds(7 * 86400L), 50);
+        assertThrows(IllegalArgumentException.class, () -> list.execute(org, null, null, null, null, null, 0, null, STAFF).blockLast());
+        assertThrows(IllegalArgumentException.class, () -> list.execute(org, null, null, null, null, null, 366, null, STAFF).blockLast());
     }
 
     @Test
     @DisplayName("late orders are asked of the store as expected before today")
     void lateAsksTheStore() {
-        when(repository.findAll(any(), any(), any(), any(), any(), anyInt())).thenReturn(Flux.empty());
+        when(repository.findAll(any(), any(), any(), any(), any(), any(), anyInt())).thenReturn(Flux.empty());
 
-        StepVerifier.create(new RetrievePurchaseOrdersUseCase(repository, clock).execute(org, null, null, null, null, true, null, STAFF)).verifyComplete();
+        StepVerifier.create(new RetrievePurchaseOrdersUseCase(repository, clock).execute(org, null, null, null, null, true, null, null, STAFF)).verifyComplete();
 
-        verify(repository).findAll(org, Status.ORDERED, null, null, TODAY, RetrievePurchaseOrdersUseCase.JUDGED);
+        verify(repository).findAll(org, Status.ORDERED, null, null, TODAY, null, RetrievePurchaseOrdersUseCase.JUDGED);
     }
 
     @Test

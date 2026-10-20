@@ -190,14 +190,14 @@ class PurchaseOrderMongoAdapterTest {
         PurchaseOrderMongoRepositoryAdapter adapter = new PurchaseOrderMongoRepositoryAdapter(client, URI);
 
         StepVerifier.create(adapter.findAll(tenant, null, null, null, null, 5)).expectNextCount(1).verifyComplete();
-        StepVerifier.create(adapter.findAll(tenant, Status.ORDERED, order.getVendorId(), Currency.BRL, TODAY, 7)).expectNextCount(1).verifyComplete();
+        StepVerifier.create(adapter.findAll(tenant, Status.ORDERED, order.getVendorId(), Currency.BRL, TODAY, NOW, 7)).expectNextCount(1).verifyComplete();
 
         ArgumentCaptor<Bson> filter = ArgumentCaptor.forClass(Bson.class);
         verify(collection, times(2)).find(filter.capture());
         String bare = filter.getAllValues().get(0).toString();
-        assertTrue(bare.contains("organisationId") && !bare.contains("status") && !bare.contains("vendorId") && !bare.contains("currency") && !bare.contains("expectedOn"));
+        assertTrue(bare.contains("organisationId") && !bare.contains("status") && !bare.contains("vendorId") && !bare.contains("currency") && !bare.contains("expectedOn") && !bare.contains("updatedAt"));
         String full = filter.getAllValues().get(1).toString();
-        assertTrue(full.contains("status") && full.contains("vendorId") && full.contains("currency") && full.contains("$lt") && full.contains(TODAY.toString()));
+        assertTrue(full.contains("status") && full.contains("vendorId") && full.contains("currency") && full.contains("$lt") && full.contains(TODAY.toString()) && full.contains("$gte") && full.contains("updatedAt"));
         verify(publisher).limit(5);
         verify(publisher).limit(7);
     }

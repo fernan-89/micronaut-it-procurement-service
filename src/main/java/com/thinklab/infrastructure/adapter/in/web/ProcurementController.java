@@ -100,8 +100,9 @@ public class ProcurementController {
     @Get("/retrieve")
     public Mono<List<PurchaseOrderResponse>> retrieveAll(@Header(TENANT_HEADER) @NotBlank String tenantId, @Header(ROLE_HEADER) @Nullable String role,
                                                          @QueryValue @Nullable Status status, @QueryValue @Nullable UUID vendorId, @QueryValue @Nullable Currency currency,
-                                                         @QueryValue @Nullable Fulfilment fulfilment, @QueryValue @Nullable Boolean late, @QueryValue @Nullable Integer limit) {
-        return Mono.defer(() -> retrieveAll.execute(UUID.fromString(tenantId), status, vendorId, currency, fulfilment, late, limit, role).collectList());
+                                                         @QueryValue @Nullable Fulfilment fulfilment, @QueryValue @Nullable Boolean late, @QueryValue @Nullable Integer changedWithinDays,
+                                                         @QueryValue @Nullable Integer limit) {
+        return Mono.defer(() -> retrieveAll.execute(UUID.fromString(tenantId), status, vendorId, currency, fulfilment, late, changedWithinDays, limit, role).collectList());
     }
 
     /** Behavior Qualifier: {@code update}. The vendor, the lines and the expected day of a draft. */
