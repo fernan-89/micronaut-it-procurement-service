@@ -312,4 +312,38 @@ class PurchaseOrderTest {
         rejects(() -> PurchaseOrder.reconstitute(id, org, "PO-1", vendor, requester, null, List.of(), null, null, null, null, null, null, null, null));
         rejects(() -> PurchaseOrder.reconstitute(id, org, "PO-1", vendor, requester, Currency.USD, null, null, null, null, null, null, null, null, null));
     }
+
+    @Test
+    @DisplayName("the promise is broken (PURCHASE_ORDER_LATE) when placed, not completely received and past the expected day; kept when placed and not late, or cancelled; not judged otherwise (platform ADR-001)")
+    void promise() {
+        PurchaseOrder late = PurchaseOrder.createNew(UUID.randomUUID(), org, "PO-LATE", vendor, requester, Currency.BRL, lines(), TODAY.minusDays(5), TODAY.minusDays(30), "b");
+        late.submit(UUID.randomUUID(), "b");
+        late.approve("cab");
+        late.place("b", NOW);
+        PurchaseOrder onTime = placed();
+        PurchaseOrder cancelled = draft();
+        cancelled.cancel("b");
+        PurchaseOrder pending = draft();
+        pending.submit(UUID.randomUUID(), "b");
+        PurchaseOrder rejected = draft();
+        rejected.submit(UUID.randomUUID(), "b");
+        rejected.reject("cab");
+        PurchaseOrder approved = draft();
+        approved.submit(UUID.randomUUID(), "b");
+        approved.approve("cab");
+
+        assertEquals(Promise.broken("PURCHASE_ORDER_LATE"), late.promise(TODAY));
+        late.receive(1, "DN-1", 10, "dock", NOW);
+        late.receive(2, "DN-2", 5, "dock", NOW);
+        assertEquals(Promise.kept(), late.promise(TODAY));
+        assertEquals(Promise.kept(), onTime.promise(TODAY));
+        assertEquals(Promise.kept(), cancelled.promise(TODAY));
+        assertEquals(Promise.notJudged(), draft().promise(TODAY));
+        assertEquals(Promise.notJudged(), pending.promise(TODAY));
+        assertEquals(Promise.notJudged(), rejected.promise(TODAY));
+        assertEquals(Promise.notJudged(), approved.promise(TODAY));
+        assertEquals("CANCELLED", cancelled.promiseStatus());
+        assertEquals("ACTIVE", onTime.promiseStatus());
+        assertEquals("ACTIVE", draft().promiseStatus());
+    }
 }

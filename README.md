@@ -29,6 +29,7 @@ what arrived. The registry says, **when you ask**, how much of an order has arri
 |---|---|
 | initiate | `POST /it-procurement/v1/initiate` `{"reference":"PO-2026-001","vendorId":"<uuid>","requesterId":"<uuid>","currency":"BRL","expectedOn":"2026-11-30","lines":[{"category":"HARDWARE","item":"LAP-14","quantity":10,"unitPrice":1500.00}]}` |
 | retrieve | `GET /it-procurement/v1/{id}/retrieve` (judged now) |
+| promises/retrieve | `GET /it-procurement/v1/promises/retrieve?changedWithinDays=&limit=` (the promises contract, ADR-035: every broken promise and every one that changed lately, each with `verdict`, a fixed `code` when broken, `status` and `changedAt`) |
 | retrieve (collection) | `GET /it-procurement/v1/retrieve?status=&vendorId=&currency=&fulfilment=&late=&changedWithinDays=&limit=` (newest first, 100 unless asked, at most 500; `changedWithinDays` 1 to 365 keeps the orders last changed within that many days) |
 | update | `PUT /it-procurement/v1/{id}/update` `{"vendorId":"<uuid>","expectedOn":null,"lines":[...]}` (a draft only; all the lines again) |
 | control/submit | `PUT /it-procurement/v1/{id}/control/submit` (DRAFT -> PENDING_APPROVAL; files the approval) |
@@ -71,7 +72,7 @@ receipt: a fact (line, delivery reference, quantity), idempotent, never edited
 
 001 hexagonal architecture · 005 UUID identity sovereignty and audit tracing · 013 BIAN conventions · 019 HTTP 409 for state conflicts ·
 030 the registry records purchase orders · 031 what was received, and whether it is late, are judged when read · 032 approval through the shared approval service ·
-033 receipts are guarded atomic writes · 034 staff only.
+033 receipts are guarded atomic writes · 034 staff only · 035 the promises contract.
 
 ## License
 

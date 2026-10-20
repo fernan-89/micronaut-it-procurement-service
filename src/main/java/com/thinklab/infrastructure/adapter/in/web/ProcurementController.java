@@ -4,9 +4,11 @@ import com.thinklab.application.dto.request.CaptureApprovalDecisionRequest;
 import com.thinklab.application.dto.request.InitiatePurchaseOrderRequest;
 import com.thinklab.application.dto.request.ReceiveRequest;
 import com.thinklab.application.dto.request.UpdatePurchaseOrderRequest;
+import com.thinklab.application.dto.response.PromiseResponse;
 import com.thinklab.application.dto.response.AuditEntryResponse;
 import com.thinklab.application.dto.response.PurchaseOrderResponse;
 import com.thinklab.application.dto.response.ReceiptResponse;
+import com.thinklab.application.usecase.RetrievePromisesUseCase;
 import com.thinklab.application.usecase.CaptureApprovalDecisionUseCase;
 import com.thinklab.application.usecase.ControlPurchaseOrderUseCase;
 import com.thinklab.application.usecase.InitiatePurchaseOrderUseCase;
@@ -65,9 +67,13 @@ public class ProcurementController {
     private final ReportReceiptUseCase receive;
     private final RetrievePurchaseOrderTrailsUseCase trails;
 
+    private final RetrievePromisesUseCase retrievePromises;
+
     public ProcurementController(InitiatePurchaseOrderUseCase initiate, RetrievePurchaseOrderUseCase retrieveOne, RetrievePurchaseOrdersUseCase retrieveAll,
                                  UpdatePurchaseOrderUseCase update, SubmitPurchaseOrderUseCase submit, CaptureApprovalDecisionUseCase captureDecision,
-                                 ControlPurchaseOrderUseCase control, ReportReceiptUseCase receive, RetrievePurchaseOrderTrailsUseCase trails) {
+                                 ControlPurchaseOrderUseCase control, ReportReceiptUseCase receive, RetrievePurchaseOrderTrailsUseCase trails,
+            RetrievePromisesUseCase retrievePromises) {
+        this.retrievePromises = retrievePromises;
         this.initiate = initiate;
         this.retrieveOne = retrieveOne;
         this.retrieveAll = retrieveAll;
@@ -103,6 +109,16 @@ public class ProcurementController {
                                                          @QueryValue @Nullable Fulfilment fulfilment, @QueryValue @Nullable Boolean late, @QueryValue @Nullable Integer changedWithinDays,
                                                          @QueryValue @Nullable Integer limit) {
         return Mono.defer(() -> retrieveAll.execute(UUID.fromString(tenantId), status, vendorId, currency, fulfilment, late, changedWithinDays, limit, role).collectList());
+    }
+
+    /**
+     * Behavior Qualifier: {@code promises/retrieve} (platform ADR-001, the promises contract). Every broken promise and every one that changed within the days asked
+     * (30 unless asked, 1 to 365), at most {@code limit} of each (500 unless asked, at most 1000).
+     */
+    @Get("/promises/retrieve")
+    public Mono<List<PromiseResponse>> promises(@Header(TENANT_HEADER) @NotBlank String tenantId, @Header(ROLE_HEADER) @Nullable String role,
+                                                @QueryValue @Nullable Integer changedWithinDays, @QueryValue @Nullable Integer limit) {
+        return Mono.defer(() -> retrievePromises.execute(UUID.fromString(tenantId), changedWithinDays, limit, role));
     }
 
     /** Behavior Qualifier: {@code update}. The vendor, the lines and the expected day of a draft. */

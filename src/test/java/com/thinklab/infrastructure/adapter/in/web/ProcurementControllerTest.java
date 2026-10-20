@@ -12,6 +12,8 @@ import com.thinklab.application.usecase.ControlPurchaseOrderUseCase;
 import com.thinklab.application.usecase.InitiatePurchaseOrderUseCase;
 import com.thinklab.application.usecase.ReportReceiptUseCase;
 import com.thinklab.application.usecase.ReportReceiptUseCase.Reported;
+import com.thinklab.application.usecase.RetrievePromisesUseCase;
+import com.thinklab.application.dto.response.PromiseResponse;
 import com.thinklab.application.usecase.RetrievePurchaseOrderTrailsUseCase;
 import com.thinklab.application.usecase.RetrievePurchaseOrderUseCase;
 import com.thinklab.application.usecase.RetrievePurchaseOrdersUseCase;
@@ -59,9 +61,10 @@ class ProcurementControllerTest {
     @Mock private ControlPurchaseOrderUseCase control;
     @Mock private ReportReceiptUseCase receive;
     @Mock private RetrievePurchaseOrderTrailsUseCase trails;
+    @Mock private RetrievePromisesUseCase retrievePromises;
 
     private ProcurementController controller() {
-        return new ProcurementController(initiate, retrieveOne, retrieveAll, update, submit, captureDecision, control, receive, trails);
+        return new ProcurementController(initiate, retrieveOne, retrieveAll, update, submit, captureDecision, control, receive, trails, retrievePromises);
     }
 
     private PurchaseOrderResponse response() {
@@ -113,5 +116,13 @@ class ProcurementControllerTest {
         StepVerifier.create(controller().receive(id, tenantHeader, EXECUTOR, ROLE, request)).assertNext(r -> assertEquals(HttpStatus.OK, r.getStatus())).verifyComplete();
         StepVerifier.create(controller().receipts(id, tenantHeader, ROLE)).assertNext(l -> assertEquals(1, l.size())).verifyComplete();
         StepVerifier.create(controller().auditLog(id, tenantHeader, ROLE)).assertNext(l -> assertEquals(1, l.size())).verifyComplete();
+    }
+
+    @Test
+    @DisplayName("the promises route passes the tenant, the role and the two parameters (platform ADR-001)")
+    void promises() {
+        when(retrievePromises.execute(tenant, 7, 50, ROLE)).thenReturn(Mono.just(List.of(new PromiseResponse(UUID.randomUUID(), "PO-1", null, "KEPT", null, "ACTIVE", now))));
+
+        StepVerifier.create(controller().promises(tenantHeader, ROLE, 7, 50)).assertNext(promises -> assertEquals(1, promises.size())).verifyComplete();
     }
 }
