@@ -209,6 +209,23 @@ public class PurchaseOrder {
         return new Assessment(fulfilment, late);
     }
 
+    /**
+     * Whether the order's promise is being kept on {@code today} (platform ADR-001): broken ({@code PURCHASE_ORDER_LATE}) when placed, not completely received and
+     * past the expected day; kept when placed and not late, and also when cancelled (nothing is owed any more); not judged in any other status.
+     */
+    public Promise promise(LocalDate today) {
+        return switch (status) {
+            case ORDERED -> assess(today).late() ? Promise.broken("PURCHASE_ORDER_LATE") : Promise.kept();
+            case CANCELLED -> Promise.kept();
+            case DRAFT, PENDING_APPROVAL, APPROVED, REJECTED -> Promise.notJudged();
+        };
+    }
+
+    /** What the registry says the order's status is for a consumer: {@code CANCELLED} once cancelled (so it never opens an alert), {@code ACTIVE} otherwise. */
+    public String promiseStatus() {
+        return status == Status.CANCELLED ? "CANCELLED" : "ACTIVE";
+    }
+
     /** The whole order in minor units: what the lines add up to (a line is its quantity times its unit price). */
     public long totalMinor() {
         return lines.stream().mapToLong(line -> line.quantity() * line.unitPriceMinor()).sum();
