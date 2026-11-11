@@ -21,6 +21,8 @@ import com.thinklab.domain.port.ApprovalServicePort;
 import com.thinklab.domain.port.ApprovalServicePort.ApprovalOutcome;
 import com.thinklab.domain.port.ApprovalServicePort.DecisionOutcome;
 import com.thinklab.domain.port.HashServicePort;
+import com.thinklab.domain.model.ApprovalBand;
+import com.thinklab.domain.repository.ApprovalBandRepository;
 import com.thinklab.domain.repository.PurchaseOrderRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -70,6 +72,7 @@ class ProcurementUseCasesTest {
     private HashServicePort hash;
     private PurchaseOrderRepository repository;
     private ApprovalServicePort approval;
+    private ApprovalBandRepository bands;
     private PurchaseOrderWorkflow workflow;
 
     @BeforeEach
@@ -77,6 +80,8 @@ class ProcurementUseCasesTest {
         hash = mock(HashServicePort.class);
         repository = mock(PurchaseOrderRepository.class);
         approval = mock(ApprovalServicePort.class);
+        bands = mock(ApprovalBandRepository.class);
+        when(bands.findActive(any(), any())).thenReturn(Flux.just(ApprovalBand.createNew(UUID.randomUUID(), org, Currency.BRL, 0, POLICY, "admin", NOW)));
         when(hash.generateSovereignId(any())).thenAnswer(call -> Mono.just(UUID.randomUUID()));
         when(repository.create(any())).thenAnswer(call -> Mono.just(call.getArgument(0)));
         when(repository.save(any(), any(), any())).thenReturn(Mono.empty());
@@ -180,27 +185,46 @@ class ProcurementUseCasesTest {
     }
 
     @Test
-    @DisplayName("sending for approval files the request with the policy, keeps its id and moves the order; nothing is filed for an order that cannot go, or when no policy is set")
+    @DisplayName("sending for approval files the request with the policy of the band the total falls in, keeps its id and says which band in the audit entry; nothing is filed for an order that cannot go")
     void submit() {
         PurchaseOrder order = draft();
         UUID filed = UUID.randomUUID();
-        when(approval.initiateApprovalRequest(org, order.getId(), requester, POLICY, "buyer")).thenReturn(Mono.just(filed));
-        SubmitPurchaseOrderUseCase submit = new SubmitPurchaseOrderUseCase(repository, approval, POLICY.toString());
+        UUID bigPolicy = UUID.randomUUID();
+        ApprovalBand small = ApprovalBand.createNew(UUID.randomUUID(), org, Currency.BRL, 0, POLICY, "admin", NOW);
+        ApprovalBand medium = ApprovalBand.createNew(UUID.randomUUID(), org, Currency.BRL, 10_000_00, bigPolicy, "admin", NOW);
+        ApprovalBand huge = ApprovalBand.createNew(UUID.randomUUID(), org, Currency.BRL, 5_000_000_00L, UUID.randomUUID(), "admin", NOW);
+        when(bands.findActive(org, Currency.BRL)).thenReturn(Flux.just(small, medium, huge));
+        when(approval.initiateApprovalRequest(org, order.getId(), requester, bigPolicy, "buyer")).thenReturn(Mono.just(filed));
+        SubmitPurchaseOrderUseCase submit = new SubmitPurchaseOrderUseCase(repository, bands, approval);
 
         StepVerifier.create(submit.execute(order.getId(), org, "buyer", STAFF)).verifyComplete();
 
         assertEquals(Status.PENDING_APPROVAL, order.getStatus());
         assertEquals(filed, order.getApprovalRequestId());
+        assertTrue(order.getAuditTrail().get(order.getAuditTrail().size() - 1).detail().contains(medium.getId().toString()));
         verify(repository).save(eq(order), eq(Status.DRAFT), any());
         verify(approval, times(1)).initiateApprovalRequest(any(), any(), any(), any(), any());
         StepVerifier.create(submit.execute(order.getId(), org, "buyer", STAFF)).expectError(InvalidPurchaseOrderStatusException.class).verify();
         verify(approval, times(1)).initiateApprovalRequest(any(), any(), any(), any(), any());
-        PurchaseOrder another = draft();
-        StepVerifier.create(new SubmitPurchaseOrderUseCase(repository, approval, " ").execute(another.getId(), org, "buyer", STAFF)).expectError(ApprovalUnavailableException.class).verify();
-        StepVerifier.create(new SubmitPurchaseOrderUseCase(repository, approval, null).execute(another.getId(), org, "buyer", STAFF)).expectError(ApprovalUnavailableException.class).verify();
         when(repository.findById(any(UUID.class), any(UUID.class))).thenReturn(Mono.empty());
         StepVerifier.create(submit.execute(UUID.randomUUID(), org, "buyer", STAFF)).expectError(PurchaseOrderNotFoundException.class).verify();
         assertThrows(ProcurementAccessDeniedException.class, () -> submit.execute(order.getId(), org, "buyer", REQUESTER).block());
+    }
+
+    @Test
+    @DisplayName("with no band that covers the total, nothing is filed and the order stays a draft")
+    void noBand() {
+        PurchaseOrder order = draft();
+        SubmitPurchaseOrderUseCase submit = new SubmitPurchaseOrderUseCase(repository, bands, approval);
+
+        when(bands.findActive(org, Currency.BRL)).thenReturn(Flux.empty());
+        StepVerifier.create(submit.execute(order.getId(), org, "buyer", STAFF)).expectError(ApprovalUnavailableException.class).verify();
+        when(bands.findActive(org, Currency.BRL)).thenReturn(Flux.just(ApprovalBand.createNew(UUID.randomUUID(), org, Currency.BRL, 99_999_999_00L, POLICY, "admin", NOW)));
+        StepVerifier.create(submit.execute(order.getId(), org, "buyer", STAFF)).expectError(ApprovalUnavailableException.class).verify();
+
+        assertEquals(Status.DRAFT, order.getStatus());
+        verify(approval, never()).initiateApprovalRequest(any(), any(), any(), any(), any());
+        verify(repository, never()).save(any(), any(), any());
     }
 
     @Test
@@ -209,7 +233,7 @@ class ProcurementUseCasesTest {
         PurchaseOrder order = draft();
         when(approval.initiateApprovalRequest(any(), any(), any(), any(), any())).thenReturn(Mono.error(new ApprovalUnavailableException("down")));
 
-        StepVerifier.create(new SubmitPurchaseOrderUseCase(repository, approval, POLICY.toString()).execute(order.getId(), org, "buyer", STAFF)).expectError(ApprovalUnavailableException.class).verify();
+        StepVerifier.create(new SubmitPurchaseOrderUseCase(repository, bands, approval).execute(order.getId(), org, "buyer", STAFF)).expectError(ApprovalUnavailableException.class).verify();
 
         assertEquals(Status.DRAFT, order.getStatus());
         verify(repository, never()).save(any(), any(), any());

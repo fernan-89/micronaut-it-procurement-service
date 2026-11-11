@@ -346,4 +346,18 @@ class PurchaseOrderTest {
         assertEquals("ACTIVE", onTime.promiseStatus());
         assertEquals("ACTIVE", draft().promiseStatus());
     }
+
+    @Test
+    @DisplayName("sending for approval with a band says in the audit entry which band and policy the total fell in; without one it says nothing of a band")
+    void submitWithBand() {
+        PurchaseOrder withBand = draft();
+        ApprovalBand band = ApprovalBand.createNew(UUID.randomUUID(), org, Currency.BRL, 1_000_00, UUID.randomUUID(), "admin", NOW);
+        PurchaseOrder without = draft();
+
+        String detail = withBand.submit(UUID.randomUUID(), "buyer", band).detail();
+        String plain = without.submit(UUID.randomUUID(), "buyer").detail();
+
+        assertTrue(detail.contains(band.getId().toString()) && detail.contains(band.getPolicyId().toString()) && detail.contains("Band from 1000.00"));
+        assertFalse(plain.contains("Band"));
+    }
 }
