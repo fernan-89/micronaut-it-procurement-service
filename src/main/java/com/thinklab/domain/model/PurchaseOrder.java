@@ -112,13 +112,19 @@ public class PurchaseOrder {
 
     /** Behavior Qualifier: {@code control/submit}. DRAFT -&gt; PENDING_APPROVAL, once the approval was filed with the shared approval service (its id is kept). */
     public AuditEntry submit(UUID newApprovalRequestId, String executor) {
+        return submit(newApprovalRequestId, executor, null);
+    }
+
+    /** As {@link #submit(UUID, String)}, and the audit entry says which approval band (ADR-036) the total fell in and the policy it chose: the amount the approvers saw. */
+    public AuditEntry submit(UUID newApprovalRequestId, String executor, ApprovalBand band) {
         requireSubmittable();
         if (newApprovalRequestId == null) {
             throw new IllegalArgumentException("The approval request is mandatory to send a purchase order for approval.");
         }
         requireExecutor(executor);
         this.approvalRequestId = newApprovalRequestId;
-        return transition(Status.PENDING_APPROVAL, "SUBMITTED", executor, "Sent for approval, " + Money.toMajor(totalMinor()) + " " + currency + ".");
+        String bandNote = band == null ? "" : " Band from " + Money.toMajor(band.getFromMinor()) + " (" + band.getId() + "), policy " + band.getPolicyId() + ".";
+        return transition(Status.PENDING_APPROVAL, "SUBMITTED", executor, "Sent for approval, " + Money.toMajor(totalMinor()) + " " + currency + "." + bandNote);
     }
 
     /** Whether the order can be sent for approval now: a draft with at least one line. Asked before the approval service is called, so nothing is filed for an order that cannot go. */

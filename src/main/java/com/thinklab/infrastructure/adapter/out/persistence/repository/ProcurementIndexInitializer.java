@@ -2,6 +2,7 @@ package com.thinklab.infrastructure.adapter.out.persistence.repository;
 
 import com.mongodb.ConnectionString;
 import com.mongodb.MongoTimeoutException;
+import com.mongodb.client.model.Filters;
 import com.mongodb.client.model.IndexOptions;
 import com.mongodb.reactivestreams.client.MongoClient;
 import io.micronaut.context.annotation.Property;
@@ -29,6 +30,7 @@ public class ProcurementIndexInitializer implements ApplicationEventListener<Sta
 
     static final String REFERENCE_INDEX = "organisationId_1_reference_1";
     static final String LIST_INDEX = "organisationId_1_status_1_createdAt_-1";
+    static final String BAND_INDEX = "organisationId_1_currency_1_fromMinor_1_active";
 
     private static final Logger log = LoggerFactory.getLogger(ProcurementIndexInitializer.class);
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
@@ -55,6 +57,9 @@ public class ProcurementIndexInitializer implements ApplicationEventListener<Sta
         String orders = PurchaseOrderMongoRepositoryAdapter.COLLECTION_NAME;
         ensureIndex(orders, REFERENCE_INDEX, new Document("organisationId", 1).append("reference", 1), new IndexOptions().unique(true));
         ensureIndex(orders, LIST_INDEX, new Document("organisationId", 1).append("status", 1).append("createdAt", -1), new IndexOptions());
+        // ADR-036: at most one ACTIVE approval band of a currency starts at an amount; a retired one frees its lower bound.
+        ensureIndex(ApprovalBandMongoRepositoryAdapter.COLLECTION_NAME, BAND_INDEX, new Document("organisationId", 1).append("currency", 1).append("fromMinor", 1),
+                new IndexOptions().unique(true).partialFilterExpression(Filters.eq("status", "ACTIVE")));
     }
 
     private void ensureIndex(String collection, String indexName, Document keys, IndexOptions options) {
