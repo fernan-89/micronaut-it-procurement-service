@@ -1,6 +1,11 @@
 package com.thinklab.infrastructure.adapter.in.web;
 
 import com.thinklab.application.dto.request.CaptureApprovalDecisionRequest;
+import com.thinklab.application.dto.request.InitiateApprovalBandRequest;
+import com.thinklab.application.dto.response.ApprovalBandResponse;
+import com.thinklab.application.usecase.InitiateApprovalBandUseCase;
+import com.thinklab.application.usecase.RetireApprovalBandUseCase;
+import com.thinklab.application.usecase.RetrieveApprovalBandsUseCase;
 import com.thinklab.application.dto.request.InitiatePurchaseOrderRequest;
 import com.thinklab.application.dto.request.ReceiveRequest;
 import com.thinklab.application.dto.request.UpdatePurchaseOrderRequest;
@@ -62,9 +67,12 @@ class ProcurementControllerTest {
     @Mock private ReportReceiptUseCase receive;
     @Mock private RetrievePurchaseOrderTrailsUseCase trails;
     @Mock private RetrievePromisesUseCase retrievePromises;
+    @Mock private InitiateApprovalBandUseCase initiateBand;
+    @Mock private RetrieveApprovalBandsUseCase retrieveBands;
+    @Mock private RetireApprovalBandUseCase retireBand;
 
     private ProcurementController controller() {
-        return new ProcurementController(initiate, retrieveOne, retrieveAll, update, submit, captureDecision, control, receive, trails, retrievePromises);
+        return new ProcurementController(initiate, retrieveOne, retrieveAll, update, submit, captureDecision, control, receive, trails, retrievePromises, initiateBand, retrieveBands, retireBand);
     }
 
     private PurchaseOrderResponse response() {
@@ -124,5 +132,19 @@ class ProcurementControllerTest {
         when(retrievePromises.execute(tenant, 7, 50, ROLE)).thenReturn(Mono.just(List.of(new PromiseResponse(UUID.randomUUID(), "PO-1", null, "KEPT", null, "ACTIVE", now))));
 
         StepVerifier.create(controller().promises(tenantHeader, ROLE, 7, 50)).assertNext(promises -> assertEquals(1, promises.size())).verifyComplete();
+    }
+
+    @Test
+    @DisplayName("a band is made (201), the active ones are read with the currency, and a band is retired (204)")
+    void bands() {
+        InitiateApprovalBandRequest request = new InitiateApprovalBandRequest(Currency.BRL, new BigDecimal("1000.00"), UUID.randomUUID());
+        ApprovalBandResponse band = new ApprovalBandResponse(id, tenant, "BRL", new BigDecimal("1000.00"), request.policyId(), "ACTIVE", now, EXECUTOR, null, null);
+        when(initiateBand.execute(tenant, request, EXECUTOR, ROLE)).thenReturn(Mono.just(band));
+        when(retrieveBands.execute(tenant, Currency.BRL, ROLE)).thenReturn(Flux.just(band));
+        when(retireBand.execute(id, tenant, EXECUTOR, ROLE)).thenReturn(Mono.empty());
+
+        StepVerifier.create(controller().initiateBand(tenantHeader, EXECUTOR, ROLE, request)).assertNext(r -> assertEquals(HttpStatus.CREATED, r.getStatus())).verifyComplete();
+        StepVerifier.create(controller().bands(tenantHeader, ROLE, Currency.BRL)).assertNext(l -> assertEquals(1, l.size())).verifyComplete();
+        StepVerifier.create(controller().retireBand(id, tenantHeader, EXECUTOR, ROLE)).assertNext(r -> assertEquals(HttpStatus.NO_CONTENT, r.getStatus())).verifyComplete();
     }
 }

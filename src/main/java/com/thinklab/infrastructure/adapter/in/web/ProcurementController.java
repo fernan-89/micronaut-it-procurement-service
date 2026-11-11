@@ -1,13 +1,18 @@
 package com.thinklab.infrastructure.adapter.in.web;
 
 import com.thinklab.application.dto.request.CaptureApprovalDecisionRequest;
+import com.thinklab.application.dto.request.InitiateApprovalBandRequest;
 import com.thinklab.application.dto.request.InitiatePurchaseOrderRequest;
 import com.thinklab.application.dto.request.ReceiveRequest;
 import com.thinklab.application.dto.request.UpdatePurchaseOrderRequest;
+import com.thinklab.application.dto.response.ApprovalBandResponse;
 import com.thinklab.application.dto.response.PromiseResponse;
 import com.thinklab.application.dto.response.AuditEntryResponse;
 import com.thinklab.application.dto.response.PurchaseOrderResponse;
 import com.thinklab.application.dto.response.ReceiptResponse;
+import com.thinklab.application.usecase.InitiateApprovalBandUseCase;
+import com.thinklab.application.usecase.RetireApprovalBandUseCase;
+import com.thinklab.application.usecase.RetrieveApprovalBandsUseCase;
 import com.thinklab.application.usecase.RetrievePromisesUseCase;
 import com.thinklab.application.usecase.CaptureApprovalDecisionUseCase;
 import com.thinklab.application.usecase.ControlPurchaseOrderUseCase;
@@ -68,12 +73,19 @@ public class ProcurementController {
     private final RetrievePurchaseOrderTrailsUseCase trails;
 
     private final RetrievePromisesUseCase retrievePromises;
+    private final InitiateApprovalBandUseCase initiateBand;
+    private final RetrieveApprovalBandsUseCase retrieveBands;
+    private final RetireApprovalBandUseCase retireBand;
 
     public ProcurementController(InitiatePurchaseOrderUseCase initiate, RetrievePurchaseOrderUseCase retrieveOne, RetrievePurchaseOrdersUseCase retrieveAll,
                                  UpdatePurchaseOrderUseCase update, SubmitPurchaseOrderUseCase submit, CaptureApprovalDecisionUseCase captureDecision,
                                  ControlPurchaseOrderUseCase control, ReportReceiptUseCase receive, RetrievePurchaseOrderTrailsUseCase trails,
-            RetrievePromisesUseCase retrievePromises) {
+            RetrievePromisesUseCase retrievePromises, InitiateApprovalBandUseCase initiateBand, RetrieveApprovalBandsUseCase retrieveBands,
+                                 RetireApprovalBandUseCase retireBand) {
         this.retrievePromises = retrievePromises;
+        this.initiateBand = initiateBand;
+        this.retrieveBands = retrieveBands;
+        this.retireBand = retireBand;
         this.initiate = initiate;
         this.retrieveOne = retrieveOne;
         this.retrieveAll = retrieveAll;
@@ -119,6 +131,30 @@ public class ProcurementController {
     public Mono<List<PromiseResponse>> promises(@Header(TENANT_HEADER) @NotBlank String tenantId, @Header(ROLE_HEADER) @Nullable String role,
                                                 @QueryValue @Nullable Integer changedWithinDays, @QueryValue @Nullable Integer limit) {
         return Mono.defer(() -> retrievePromises.execute(UUID.fromString(tenantId), changedWithinDays, limit, role));
+    }
+
+    /** Behavior Qualifier: {@code band/initiate} (ADR-036). From this amount up, in this currency, orders are sent for approval against this policy. */
+    @Post("/band/initiate")
+    public Mono<HttpResponse<ApprovalBandResponse>> initiateBand(
+            @Header(TENANT_HEADER) @NotBlank String tenantId, @Header(EXECUTOR_HEADER) @NotBlank String executor,
+            @Header(ROLE_HEADER) @Nullable String role, @Body @Valid InitiateApprovalBandRequest request
+    ) {
+        log.info("[ACTION: INITIATE_APPROVAL_BAND] [EXECUTOR: {}] Received request for organisation: {}", executor, tenantId);
+        return initiateBand.execute(UUID.fromString(tenantId), request, executor, role).map(HttpResponse::created);
+    }
+
+    /** Behavior Qualifier: {@code band/retrieve} (ADR-036). The active bands, lowest bound first, optionally of one currency. */
+    @Get("/band/retrieve")
+    public Mono<List<ApprovalBandResponse>> bands(@Header(TENANT_HEADER) @NotBlank String tenantId, @Header(ROLE_HEADER) @Nullable String role, @QueryValue @Nullable Currency currency) {
+        return Mono.defer(() -> retrieveBands.execute(UUID.fromString(tenantId), currency, role).collectList());
+    }
+
+    /** Behavior Qualifier: {@code band/{id}/control/retire} (ADR-036). ACTIVE -&gt; RETIRED, final. */
+    @Put("/band/{id}/control/retire")
+    public Mono<HttpResponse<Void>> retireBand(@PathVariable UUID id, @Header(TENANT_HEADER) @NotBlank String tenantId, @Header(EXECUTOR_HEADER) @NotBlank String executor,
+                                               @Header(ROLE_HEADER) @Nullable String role) {
+        log.info("[ACTION: RETIRE_APPROVAL_BAND] [EXECUTOR: {}] for ID: {}", executor, id);
+        return Mono.defer(() -> retireBand.execute(id, UUID.fromString(tenantId), executor, role)).thenReturn(HttpResponse.noContent());
     }
 
     /** Behavior Qualifier: {@code update}. The vendor, the lines and the expected day of a draft. */

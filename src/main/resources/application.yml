@@ -179,8 +179,4 @@ thinklab:
     enabled: ${THINKLAB_EVENTS_ENABLED:false}
     nats-url: ${THINKLAB_EVENTS_NATS_URL:`nats://localhost:4222`}
 
-  # ----------------------------------------------------------------------------------------------
-  # Procurement (ADR-032): the ApprovalPolicy (owned by workflow-approval-service) a purchase order is sent to. Operator-provisioned UUID, not defaultable.
-  # ----------------------------------------------------------------------------------------------
-  procurement:
-    approval-policy-id: ${THINKLAB_PO_POLICY_ID:}
+  # Procurement: the approval policy of a purchase order is that of its approval band (ADR-036), made through band/initiate; there is no configuration for it.

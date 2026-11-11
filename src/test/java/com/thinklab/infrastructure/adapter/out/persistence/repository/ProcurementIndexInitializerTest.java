@@ -14,6 +14,7 @@ import reactor.core.publisher.Mono;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -28,12 +29,15 @@ class ProcurementIndexInitializerTest {
     private final MongoClient client = mock(MongoClient.class);
 
     @Test
-    @DisplayName("startup creates the unique reference per organisation and the list index")
+    @DisplayName("startup creates the unique reference per organisation, the list index and the unique partial index of active approval bands")
     void indexes() {
         MongoDatabase database = mock(MongoDatabase.class);
         MongoCollection<Document> orders = mock(MongoCollection.class);
         when(client.getDatabase("tenant_po")).thenReturn(database);
         when(database.getCollection("purchase_orders")).thenReturn(orders);
+        MongoCollection<Document> bandCollection = mock(MongoCollection.class);
+        when(database.getCollection("approval_bands")).thenReturn(bandCollection);
+        when(bandCollection.createIndex(any(), any(IndexOptions.class))).thenReturn(Mono.just("ok"));
         when(orders.createIndex(any(), any(IndexOptions.class))).thenReturn(Mono.just("ok"));
 
         new ProcurementIndexInitializer(client, "mongodb://mongo:27017/tenant_po").onApplicationEvent(mock(StartupEvent.class));
@@ -44,6 +48,11 @@ class ProcurementIndexInitializerTest {
         assertEquals("organisationId_1_reference_1", options.getAllValues().get(0).getName());
         assertFalse(options.getAllValues().get(1).isUnique());
         assertEquals("organisationId_1_status_1_createdAt_-1", options.getAllValues().get(1).getName());
+        ArgumentCaptor<IndexOptions> bandOptions = ArgumentCaptor.forClass(IndexOptions.class);
+        verify(bandCollection).createIndex(any(), bandOptions.capture());
+        assertTrue(bandOptions.getValue().isUnique());
+        assertEquals("organisationId_1_currency_1_fromMinor_1_active", bandOptions.getValue().getName());
+        assertNotNull(bandOptions.getValue().getPartialFilterExpression());
     }
 
     @Test
@@ -58,7 +67,7 @@ class ProcurementIndexInitializerTest {
 
         initializer.onApplicationEvent(mock(StartupEvent.class));
 
-        verify(collection, times(2)).createIndex(any(), any(IndexOptions.class));
+        verify(collection, times(3)).createIndex(any(), any(IndexOptions.class));
         assertThrows(NullPointerException.class, () -> initializer.onApplicationEvent(null));
         assertThrows(NullPointerException.class, () -> new ProcurementIndexInitializer(null, "mongodb://mongo:27017"));
         assertThrows(NullPointerException.class, () -> new ProcurementIndexInitializer(client, null));

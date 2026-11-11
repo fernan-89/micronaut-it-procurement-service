@@ -1,7 +1,10 @@
 package com.thinklab.infrastructure.adapter.out.persistence;
 
 import com.mongodb.reactivestreams.client.MongoClient;
+import com.thinklab.domain.exception.DuplicateApprovalBandException;
 import com.thinklab.domain.exception.DuplicatePurchaseOrderException;
+import com.thinklab.domain.model.ApprovalBand;
+import com.thinklab.domain.repository.ApprovalBandRepository;
 import com.thinklab.domain.exception.InvalidPurchaseOrderStatusException;
 import com.thinklab.domain.model.Money.Currency;
 import com.thinklab.domain.model.PurchaseOrder;
@@ -53,6 +56,7 @@ class ProcurementPersistenceIT implements TestPropertyProvider {
     }
 
     @Inject PurchaseOrderRepository orders;
+    @Inject ApprovalBandRepository bandStore;
     @Inject MongoClient mongoClient;
 
     private PurchaseOrder draft(UUID organisation, String reference, int quantity) {
@@ -217,5 +221,45 @@ class ProcurementPersistenceIT implements TestPropertyProvider {
         Document key = indexes.stream().filter(i -> "organisationId_1_reference_1".equals(i.getString("name"))).findFirst().orElseThrow();
         assertEquals(true, key.getBoolean("unique"));
         assertTrue(indexes.stream().anyMatch(i -> "organisationId_1_status_1_createdAt_-1".equals(i.getString("name"))));
+    }
+
+    private ApprovalBand band(UUID organisation, Currency currency, long from) {
+        return ApprovalBand.createNew(UUID.randomUUID(), organisation, currency, from, UUID.randomUUID(), "admin", NOW);
+    }
+
+    @Test
+    @DisplayName("approval bands: two active bands of a currency cannot start at the same amount, another currency or tenant can, and a retired band frees its lower bound; a retirement is applied once")
+    void approvalBands() {
+        UUID org = UUID.randomUUID();
+        ApprovalBand first = band(org, Currency.BRL, 1_000_00);
+        bandStore.create(first).block();
+
+        assertThrows(DuplicateApprovalBandException.class, () -> bandStore.create(band(org, Currency.BRL, 1_000_00)).block());
+        assertNotNull(bandStore.create(band(org, Currency.USD, 1_000_00)).block());
+        assertNotNull(bandStore.create(band(UUID.randomUUID(), Currency.BRL, 1_000_00)).block());
+        assertNotNull(bandStore.create(band(org, Currency.BRL, 0)).block());
+
+        assertEquals(List.of(0L, 1_000_00L), bandStore.findActive(org, Currency.BRL).map(ApprovalBand::getFromMinor).collectList().block());
+        assertEquals(3, bandStore.findActive(org, null).count().block());
+        assertEquals(Boolean.TRUE, bandStore.retire(first.getId(), org, "admin2", NOW).block());
+        assertEquals(Boolean.FALSE, bandStore.retire(first.getId(), org, "admin3", NOW).block());
+        assertEquals(Boolean.FALSE, bandStore.retire(first.getId(), UUID.randomUUID(), "admin3", NOW).block());
+        ApprovalBand retired = bandStore.findById(first.getId(), org).block();
+        assertEquals(ApprovalBand.Status.RETIRED, retired.getStatus());
+        assertEquals("admin2", retired.getRetiredBy());
+        assertEquals(1, bandStore.findActive(org, Currency.BRL).count().block());
+        assertNotNull(bandStore.create(band(org, Currency.BRL, 1_000_00)).block());
+    }
+
+    @Test
+    @DisplayName("twenty people retiring one band at once: exactly one retires it")
+    void retireRace() {
+        UUID org = UUID.randomUUID();
+        ApprovalBand target = band(org, Currency.EUR, 5);
+        bandStore.create(target).block();
+
+        List<Boolean> results = Flux.range(0, 20).flatMap(n -> bandStore.retire(target.getId(), org, "admin" + n, NOW).subscribeOn(Schedulers.parallel())).collectList().block();
+
+        assertEquals(1, results.stream().filter(Boolean::booleanValue).count());
     }
 }

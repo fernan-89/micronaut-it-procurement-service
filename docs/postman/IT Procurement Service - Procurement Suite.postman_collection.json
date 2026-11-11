@@ -3013,6 +3013,836 @@
         }
       ],
       "name": "03. Negative Tests & Guarantees"
+    },
+    {
+      "name": "04. Approval Bands by Amount (ADR-036)",
+      "item": [
+        {
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.environment.set('poBandPolicyId', pm.variables.replaceIn('{{$guid}}'));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 201', () => pm.response.to.have.status(201));",
+                  "const json = pm.response.json();",
+                  "pm.environment.set('bandId', json.id);",
+                  "pm.test('ACTIVE, BRL, from 1000, the policy it was given, made by the executor, not retired', () => {",
+                  "    pm.expect(json.status).to.eql('ACTIVE');",
+                  "    pm.expect(json.currency).to.eql('BRL');",
+                  "    pm.expect(json.fromAmount).to.eql(1000);",
+                  "    pm.expect(json.policyId).to.eql(pm.environment.get('poBandPolicyId'));",
+                  "    pm.expect(json.createdBy).to.eql(pm.environment.get('executor'));",
+                  "    pm.expect(json.retiredAt).to.be.undefined;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "56. Make a band at 1000 BRL (201, ACTIVE, the amount in major units)",
+          "request": {
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{poOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "POST",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-procurement",
+                "v1",
+                "band",
+                "initiate"
+              ],
+              "raw": "{{base_url}}/it-procurement/v1/band/initiate"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currency\": \"BRL\",\n  \"fromAmount\": 1000.00,\n  \"policyId\": \"{{poBandPolicyId}}\"\n}"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 201', () => pm.response.to.have.status(201));",
+                  "pm.test('USD from 0', () => pm.expect(pm.response.json().fromAmount).to.eql(0));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "57. Make a band at 0 USD (201)",
+          "request": {
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{poOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "POST",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-procurement",
+                "v1",
+                "band",
+                "initiate"
+              ],
+              "raw": "{{base_url}}/it-procurement/v1/band/initiate"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currency\": \"USD\",\n  \"fromAmount\": 0,\n  \"policyId\": \"{{poBandPolicyId}}\"\n}"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 409', () => pm.response.to.have.status(409));",
+                  "const json = pm.response.json();",
+                  "pm.test('RFC 7807 error_code is ERR-PRC-00409', () => {",
+                  "    pm.expect(json.status).to.eql(409);",
+                  "    pm.expect(json.error_code).to.eql('ERR-PRC-00409');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "58. A second active band of the currency at the same amount (409)",
+          "request": {
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{poOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "POST",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-procurement",
+                "v1",
+                "band",
+                "initiate"
+              ],
+              "raw": "{{base_url}}/it-procurement/v1/band/initiate"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currency\": \"BRL\",\n  \"fromAmount\": 1000.00,\n  \"policyId\": \"{{poBandPolicyId}}\"\n}"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 201', () => pm.response.to.have.status(201));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "59. The same amount in another currency is another band (201)",
+          "request": {
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{poOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "POST",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-procurement",
+                "v1",
+                "band",
+                "initiate"
+              ],
+              "raw": "{{base_url}}/it-procurement/v1/band/initiate"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currency\": \"EUR\",\n  \"fromAmount\": 1000.00,\n  \"policyId\": \"{{poBandPolicyId}}\"\n}"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test('only the BRL band, active', () => {",
+                  "    pm.expect(json.length).to.eql(1);",
+                  "    pm.expect(json[0].currency).to.eql('BRL');",
+                  "    pm.expect(json[0].status).to.eql('ACTIVE');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "60. Read the BRL bands (200, only BRL)",
+          "request": {
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{poOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "GET",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-procurement",
+                "v1",
+                "band",
+                "retrieve"
+              ],
+              "raw": "{{base_url}}/it-procurement/v1/band/retrieve?currency=BRL",
+              "query": [
+                {
+                  "key": "currency",
+                  "value": "BRL"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('three active bands', () => pm.expect(pm.response.json().length).to.eql(3));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "61. Read every active band, lowest first within a currency (200)",
+          "request": {
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{poOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "GET",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-procurement",
+                "v1",
+                "band",
+                "retrieve"
+              ],
+              "raw": "{{base_url}}/it-procurement/v1/band/retrieve"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 204', () => pm.response.to.have.status(204));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "62. Retire the BRL band (204)",
+          "request": {
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{poOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "PUT",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-procurement",
+                "v1",
+                "band",
+                "{{bandId}}",
+                "control",
+                "retire"
+              ],
+              "raw": "{{base_url}}/it-procurement/v1/band/{{bandId}}/control/retire"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 409', () => pm.response.to.have.status(409));",
+                  "const json = pm.response.json();",
+                  "pm.test('RFC 7807 error_code is ERR-PRC-00409', () => {",
+                  "    pm.expect(json.status).to.eql(409);",
+                  "    pm.expect(json.error_code).to.eql('ERR-PRC-00409');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "63. Retire it again (409)",
+          "request": {
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{poOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "PUT",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-procurement",
+                "v1",
+                "band",
+                "{{bandId}}",
+                "control",
+                "retire"
+              ],
+              "raw": "{{base_url}}/it-procurement/v1/band/{{bandId}}/control/retire"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('no BRL band is left', () => pm.expect(pm.response.json().length).to.eql(0));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "64. A retired band is no longer listed (200)",
+          "request": {
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{poOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "GET",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-procurement",
+                "v1",
+                "band",
+                "retrieve"
+              ],
+              "raw": "{{base_url}}/it-procurement/v1/band/retrieve?currency=BRL",
+              "query": [
+                {
+                  "key": "currency",
+                  "value": "BRL"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 201', () => pm.response.to.have.status(201));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "65. Its lower bound can be used again (201)",
+          "request": {
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{poOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "POST",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-procurement",
+                "v1",
+                "band",
+                "initiate"
+              ],
+              "raw": "{{base_url}}/it-procurement/v1/band/initiate"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currency\": \"BRL\",\n  \"fromAmount\": 1000.00,\n  \"policyId\": \"{{poBandPolicyId}}\"\n}"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 404', () => pm.response.to.have.status(404));",
+                  "const json = pm.response.json();",
+                  "pm.test('RFC 7807 error_code is ERR-PRC-00404', () => {",
+                  "    pm.expect(json.status).to.eql(404);",
+                  "    pm.expect(json.error_code).to.eql('ERR-PRC-00404');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "66. A band that does not exist (404)",
+          "request": {
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{poOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "PUT",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-procurement",
+                "v1",
+                "band",
+                "00000000-0000-0000-0000-000000000000",
+                "control",
+                "retire"
+              ],
+              "raw": "{{base_url}}/it-procurement/v1/band/00000000-0000-0000-0000-000000000000/control/retire"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 400', () => pm.response.to.have.status(400));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "67. A negative lower bound (400)",
+          "request": {
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{poOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "POST",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-procurement",
+                "v1",
+                "band",
+                "initiate"
+              ],
+              "raw": "{{base_url}}/it-procurement/v1/band/initiate"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currency\": \"BRL\",\n  \"fromAmount\": -1,\n  \"policyId\": \"{{poBandPolicyId}}\"\n}"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 400', () => pm.response.to.have.status(400));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "68. A lower bound with three decimals (400)",
+          "request": {
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{poOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "POST",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-procurement",
+                "v1",
+                "band",
+                "initiate"
+              ],
+              "raw": "{{base_url}}/it-procurement/v1/band/initiate"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currency\": \"BRL\",\n  \"fromAmount\": 10.001,\n  \"policyId\": \"{{poBandPolicyId}}\"\n}"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 400', () => pm.response.to.have.status(400));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "69. An unknown currency (400)",
+          "request": {
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{poOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "POST",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-procurement",
+                "v1",
+                "band",
+                "initiate"
+              ],
+              "raw": "{{base_url}}/it-procurement/v1/band/initiate"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currency\": \"GBP\",\n  \"fromAmount\": 10,\n  \"policyId\": \"{{poBandPolicyId}}\"\n}"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 403', () => pm.response.to.have.status(403));",
+                  "const json = pm.response.json();",
+                  "pm.test('RFC 7807 error_code is ERR-PRC-00403', () => {",
+                  "    pm.expect(json.status).to.eql(403);",
+                  "    pm.expect(json.error_code).to.eql('ERR-PRC-00403');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "70. Make a band as a REQUESTER (403)",
+          "request": {
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{poOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              },
+              {
+                "key": "X-Role",
+                "value": "REQUESTER"
+              }
+            ],
+            "method": "POST",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-procurement",
+                "v1",
+                "band",
+                "initiate"
+              ],
+              "raw": "{{base_url}}/it-procurement/v1/band/initiate"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currency\": \"BRL\",\n  \"fromAmount\": 5,\n  \"policyId\": \"{{poBandPolicyId}}\"\n}"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 403', () => pm.response.to.have.status(403));",
+                  "const json = pm.response.json();",
+                  "pm.test('RFC 7807 error_code is ERR-PRC-00403', () => {",
+                  "    pm.expect(json.status).to.eql(403);",
+                  "    pm.expect(json.error_code).to.eql('ERR-PRC-00403');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "71. Read the bands as a REQUESTER (403)",
+          "request": {
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{poOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              },
+              {
+                "key": "X-Role",
+                "value": "REQUESTER"
+              }
+            ],
+            "method": "GET",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-procurement",
+                "v1",
+                "band",
+                "retrieve"
+              ],
+              "raw": "{{base_url}}/it-procurement/v1/band/retrieve"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 403', () => pm.response.to.have.status(403));",
+                  "const json = pm.response.json();",
+                  "pm.test('RFC 7807 error_code is ERR-PRC-00403', () => {",
+                  "    pm.expect(json.status).to.eql(403);",
+                  "    pm.expect(json.error_code).to.eql('ERR-PRC-00403');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "72. Retire a band as a REQUESTER (403)",
+          "request": {
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{poOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              },
+              {
+                "key": "X-Role",
+                "value": "REQUESTER"
+              }
+            ],
+            "method": "PUT",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-procurement",
+                "v1",
+                "band",
+                "{{bandId}}",
+                "control",
+                "retire"
+              ],
+              "raw": "{{base_url}}/it-procurement/v1/band/{{bandId}}/control/retire"
+            }
+          }
+        }
+      ]
     }
   ],
   "variable": [
