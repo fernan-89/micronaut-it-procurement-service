@@ -12,13 +12,16 @@ what arrived. The registry says, **when you ask**, how much of an order has arri
 - **Lines are fixed lists and identifiers** (ADR-030): a category (`HARDWARE`, `SOFTWARE`, `CLOUD`, `SERVICES`, `SUPPLIES`, `OTHER`), an item identifier (a part
   number or SKU, never a sentence), a quantity and a unit price. **One currency per order** (`BRL`, `USD`, `EUR`), no conversion; money in minor units, at
   most two decimal places.
-- **Approval is the shared service's** (ADR-032): `control/submit` files the request on the approval service against the configured policy, and
-  `approval/capture` forwards one approver's decision and reads the outcome back at once. No comment travels.
+- **Approval is the shared service's** (ADR-032): `control/submit` files the request on the approval service against the policy of the **approval band** the order's
+  total falls in (ADR-036), and `approval/capture` forwards one approver's decision and reads the outcome back at once. No comment travels.
+- **Approval bands** (ADR-036): a band says "in this currency, from this amount up, use this policy". The band of an order is the active one with the greatest lower
+  bound not above its total; one table per currency, no conversion. **No band, no submission**: `control/submit` answers 502 `ERR-PRC-00502` and files nothing. The band
+  and policy used are written in the audit entry of the submission, and the lines of a sent order cannot change.
 - **What arrived, and whether it is late, are judged when read** (ADR-031), never stored: `fulfilment` (`NOT_ORDERED`, `NONE`, `PARTIAL`, `COMPLETE`) and `late`.
 - **Receipts are guarded atomic writes** (ADR-033): the same line and delivery reference is the same receipt (200), another quantity for it is a 409, a receipt can
   never exceed what is still to arrive (twenty receipts of one unit against five to arrive leave exactly five), and a placed order that received goods cannot be cancelled.
 - **Staff only** (ADR-034): every route refuses a `REQUESTER` with 403 `ERR-PRC-00403`; another tenant's order answers 404. There is no delete (an order is cancelled).
-- **Not here yet:** a budget per cost centre, amount bands for the approval, a self-service view for the requester, linking a receipt to an asset or a licence,
+- **Not here yet:** a budget per cost centre, a self-service view for the requester, linking a receipt to an asset or a licence,
   vendor price checks, telling someone when an order is late (a later pairing with alerting).
 
 ## BIAN Behavior Qualifier Contract
@@ -32,7 +35,10 @@ what arrived. The registry says, **when you ask**, how much of an order has arri
 | promises/retrieve | `GET /it-procurement/v1/promises/retrieve?changedWithinDays=&limit=` (the promises contract, ADR-035: every broken promise and every one that changed lately, each with `verdict`, a fixed `code` when broken, `status` and `changedAt`) |
 | retrieve (collection) | `GET /it-procurement/v1/retrieve?status=&vendorId=&currency=&fulfilment=&late=&changedWithinDays=&limit=` (newest first, 100 unless asked, at most 500; `changedWithinDays` 1 to 365 keeps the orders last changed within that many days) |
 | update | `PUT /it-procurement/v1/{id}/update` `{"vendorId":"<uuid>","expectedOn":null,"lines":[...]}` (a draft only; all the lines again) |
-| control/submit | `PUT /it-procurement/v1/{id}/control/submit` (DRAFT -> PENDING_APPROVAL; files the approval) |
+| control/submit | `PUT /it-procurement/v1/{id}/control/submit` (DRAFT -> PENDING_APPROVAL; files the approval against the policy of the band the total falls in, 502 when none does) |
+| band/initiate | `POST /it-procurement/v1/band/initiate` `{"currency":"BRL","fromAmount":0,"policyId":"<uuid>"}` (201; two active bands of a currency cannot start at the same amount: 409) |
+| band/retrieve | `GET /it-procurement/v1/band/retrieve?currency=` (the active bands, lowest bound first) |
+| band/{id}/control/retire | `PUT /it-procurement/v1/band/{id}/control/retire` (final; 409 when it is not active; its lower bound can be used again) |
 | approval/capture | `PUT /it-procurement/v1/{id}/approval/capture` `{"approverId":"<uuid>","outcome":"APPROVE"}` (answers the order after the decision) |
 | control/place | `PUT /it-procurement/v1/{id}/control/place` (APPROVED -> ORDERED) |
 | control/cancel | `PUT /it-procurement/v1/{id}/control/cancel` (final) |
@@ -54,7 +60,7 @@ receipt: a fact (line, delivery reference, quantity), idempotent, never edited
 | `ERR-PRC-00403` | 403 | A REQUESTER used procurement (ADR-034) |
 | `ERR-PRC-00404` | 404 | No such order in the organisation |
 | `ERR-PRC-00409` | 409 | A reference already used; an illegal transition; a receipt over what is left; a delivery reference reused with another quantity; a decision the approval service refused |
-| `ERR-PRC-00502` | 502 | The approval service could not be reached or refused, or no approval policy is configured (ADR-032) |
+| `ERR-PRC-00502` | 502 | The approval service could not be reached or refused, or no approval band covers the order's total (ADR-032, ADR-036) |
 | `ERR-VALIDATION-00400` | 400 | A value outside a list, an identifier that does not match, a price with three decimals, a bad day |
 
 ## Run, test, configure
@@ -64,7 +70,7 @@ receipt: a fact (line, delivery reference, quantity), idempotent, never edited
 ./gradlew check               # unit tests + 100% line and branch gate + integration tests (Testcontainers, needs Docker)
 ```
 
-`THINKLAB_PO_POLICY_ID` (the approval policy of purchase orders; an operator-provisioned id, there is no default: without it `control/submit` answers 502),
+There is no approval policy to configure: make a band at 0 (`band/initiate`) with the id of a policy of the approval service (before ADR-036 this was `THINKLAB_PO_POLICY_ID`, now gone).
 `WORKFLOW_APPROVAL_SERVICE_URL` (default `http://localhost:8090`), `HASH_SERVICE_URL` (default `http://localhost:8080`, the sovereign ids), `MICRONAUT_SERVER_PORT`
 (default 8114), `thinklab.mongo.create-indexes` (default on). The service has no scheduler.
 
@@ -72,7 +78,7 @@ receipt: a fact (line, delivery reference, quantity), idempotent, never edited
 
 001 hexagonal architecture · 005 UUID identity sovereignty and audit tracing · 013 BIAN conventions · 019 HTTP 409 for state conflicts ·
 030 the registry records purchase orders · 031 what was received, and whether it is late, are judged when read · 032 approval through the shared approval service ·
-033 receipts are guarded atomic writes · 034 staff only · 035 the promises contract.
+033 receipts are guarded atomic writes · 034 staff only · 035 the promises contract · 036 approval bands by amount.
 
 ## License
 
