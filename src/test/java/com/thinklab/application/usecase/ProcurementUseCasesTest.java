@@ -248,7 +248,7 @@ class ProcurementUseCasesTest {
         UUID request = UUID.randomUUID();
         order.submit(request, "b");
         CaptureApprovalDecisionRequest approve = new CaptureApprovalDecisionRequest(approver, DecisionOutcome.APPROVE);
-        when(approval.captureDecision(request, DecisionOutcome.APPROVE, approver.toString())).thenReturn(Mono.just(ApprovalOutcome.PENDING), Mono.just(ApprovalOutcome.APPROVED));
+        when(approval.captureDecision(org, request, DecisionOutcome.APPROVE, approver.toString())).thenReturn(Mono.just(ApprovalOutcome.PENDING), Mono.just(ApprovalOutcome.APPROVED));
 
         StepVerifier.create(capture.execute(order.getId(), org, approve, "buyer", STAFF)).assertNext(response -> assertEquals("PENDING_APPROVAL", response.status())).verifyComplete();
         verify(repository, never()).save(any(), any(), any());
@@ -258,7 +258,7 @@ class ProcurementUseCasesTest {
         PurchaseOrder other = draft();
         UUID otherRequest = UUID.randomUUID();
         other.submit(otherRequest, "b");
-        when(approval.captureDecision(otherRequest, DecisionOutcome.REJECT, approver.toString())).thenReturn(Mono.just(ApprovalOutcome.REJECTED));
+        when(approval.captureDecision(org, otherRequest, DecisionOutcome.REJECT, approver.toString())).thenReturn(Mono.just(ApprovalOutcome.REJECTED));
         StepVerifier.create(capture.execute(other.getId(), org, new CaptureApprovalDecisionRequest(approver, DecisionOutcome.REJECT), "buyer", STAFF))
                 .assertNext(response -> assertEquals("REJECTED", response.status())).verifyComplete();
 

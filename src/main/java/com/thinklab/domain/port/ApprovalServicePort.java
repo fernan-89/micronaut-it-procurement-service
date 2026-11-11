@@ -13,8 +13,8 @@ public interface ApprovalServicePort {
     /** Files a new ApprovalRequest against the configured policy and returns its sovereign id. */
     Mono<UUID> initiateApprovalRequest(UUID organisationId, UUID purchaseOrderId, UUID requesterId, UUID policyId, String executor);
 
-    /** Forwards one approver's decision (never a comment: nothing in words travels) and returns the request's post-decision outcome, read back in the same cycle. */
-    Mono<ApprovalOutcome> captureDecision(UUID approvalRequestId, DecisionOutcome outcome, String executor);
+    /** Forwards one approver's decision, in the tenant of the order (never a comment: nothing in words travels) and returns the request's post-decision outcome, read back in the same cycle. */
+    Mono<ApprovalOutcome> captureDecision(UUID organisationId, UUID approvalRequestId, DecisionOutcome outcome, String executor);
 
     enum DecisionOutcome { APPROVE, REJECT }
 

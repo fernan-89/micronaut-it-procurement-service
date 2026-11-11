@@ -47,7 +47,7 @@ public class CaptureApprovalDecisionUseCase {
                     if (order.getStatus() != Status.PENDING_APPROVAL || order.getApprovalRequestId() == null) {
                         return Mono.error(new InvalidPurchaseOrderStatusException("Illegal transition: no approval is currently in progress for this PurchaseOrder."));
                     }
-                    return approvalServicePort.captureDecision(order.getApprovalRequestId(), request.outcome(), request.approverId().toString())
+                    return approvalServicePort.captureDecision(organisationId, order.getApprovalRequestId(), request.outcome(), request.approverId().toString())
                             .flatMap(outcome -> apply(order, outcome, executor));
                 });
     }
