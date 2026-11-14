@@ -56,12 +56,12 @@ class WorkflowApprovalServiceAdapterTest {
     @DisplayName("a decision is forwarded with no comment and the status read back is the outcome")
     void capture() {
         UUID request = UUID.randomUUID();
-        when(client.captureDecision(eq(request), eq("approver-1"), any())).thenReturn(Mono.just(new ApprovalRequestApiResponse(request, "APPROVED")));
+        when(client.captureDecision(eq(request), eq(org.toString()), eq("approver-1"), any())).thenReturn(Mono.just(new ApprovalRequestApiResponse(request, "APPROVED")));
 
-        StepVerifier.create(adapter.captureDecision(request, DecisionOutcome.APPROVE, "approver-1")).expectNext(ApprovalOutcome.APPROVED).verifyComplete();
+        StepVerifier.create(adapter.captureDecision(org, request, DecisionOutcome.APPROVE, "approver-1")).expectNext(ApprovalOutcome.APPROVED).verifyComplete();
 
         ArgumentCaptor<CaptureDecisionApiRequest> body = ArgumentCaptor.forClass(CaptureDecisionApiRequest.class);
-        verify(client).captureDecision(eq(request), eq("approver-1"), body.capture());
+        verify(client).captureDecision(eq(request), eq(org.toString()), eq("approver-1"), body.capture());
         assertEquals("APPROVE", body.getValue().outcome());
         assertNull(body.getValue().comment());
     }
@@ -97,9 +97,9 @@ class WorkflowApprovalServiceAdapterTest {
     @DisplayName("a failure while filing or deciding is mapped, never raw")
     void failuresAreMapped() {
         when(client.initiate(any(), any(), any())).thenReturn(Mono.error(new IllegalStateException("down")));
-        when(client.captureDecision(any(), any(), any())).thenReturn(Mono.error(new IllegalStateException("down")));
+        when(client.captureDecision(any(), any(), any(), any())).thenReturn(Mono.error(new IllegalStateException("down")));
 
         StepVerifier.create(adapter.initiateApprovalRequest(org, order, requester, policy, "buyer")).expectError(ApprovalUnavailableException.class).verify();
-        StepVerifier.create(adapter.captureDecision(UUID.randomUUID(), DecisionOutcome.REJECT, "a")).expectError(ApprovalUnavailableException.class).verify();
+        StepVerifier.create(adapter.captureDecision(UUID.randomUUID(), UUID.randomUUID(), DecisionOutcome.REJECT, "a")).expectError(ApprovalUnavailableException.class).verify();
     }
 }
