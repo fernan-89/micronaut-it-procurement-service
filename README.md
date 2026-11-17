@@ -70,7 +70,7 @@ receipt: a fact (line, delivery reference, quantity), idempotent, never edited
 ./gradlew check               # unit tests + 100% line and branch gate + integration tests (Testcontainers, needs Docker)
 ```
 
-There is no approval policy to configure: make a band at 0 (`band/initiate`) with the id of a policy of the approval service (before ADR-036 this was `THINKLAB_PO_POLICY_ID`, now gone).
+There is no approval policy to configure: make a band at 0 (`band/initiate`) with the id of a policy of the approval service (before ADR-036 this was `THINKLAB_PO_POLICY_ID`, now ignored: if it is still set, the service logs a warning at startup saying so).
 `WORKFLOW_APPROVAL_SERVICE_URL` (default `http://localhost:8090`), `HASH_SERVICE_URL` (default `http://localhost:8080`, the sovereign ids), `MICRONAUT_SERVER_PORT`
 (default 8114), `thinklab.mongo.create-indexes` (default on). The service has no scheduler.
 
