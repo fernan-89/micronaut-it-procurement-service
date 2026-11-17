@@ -36,7 +36,7 @@ what arrived. The registry says, **when you ask**, how much of an order has arri
 | retrieve (collection) | `GET /it-procurement/v1/retrieve?status=&vendorId=&currency=&fulfilment=&late=&changedWithinDays=&limit=` (newest first, 100 unless asked, at most 500; `changedWithinDays` 1 to 365 keeps the orders last changed within that many days) |
 | update | `PUT /it-procurement/v1/{id}/update` `{"vendorId":"<uuid>","expectedOn":null,"lines":[...]}` (a draft only; all the lines again) |
 | control/submit | `PUT /it-procurement/v1/{id}/control/submit` (DRAFT -> PENDING_APPROVAL; files the approval against the policy of the band the total falls in, 502 when none does) |
-| band/initiate | `POST /it-procurement/v1/band/initiate` `{"currency":"BRL","fromAmount":0,"policyId":"<uuid>"}` (201; two active bands of a currency cannot start at the same amount: 409) |
+| band/initiate | `POST /it-procurement/v1/band/initiate` `{"currency":"BRL","fromAmount":0,"policyId":"<uuid>"}` (201; 400 when the approval service does not know the policy, 502 when it cannot be reached; two active bands of a currency cannot start at the same amount: 409) |
 | band/retrieve | `GET /it-procurement/v1/band/retrieve?currency=` (the active bands, lowest bound first) |
 | band/{id}/control/retire | `PUT /it-procurement/v1/band/{id}/control/retire` (final; 409 when it is not active; its lower bound can be used again) |
 | approval/capture | `PUT /it-procurement/v1/{id}/approval/capture` `{"approverId":"<uuid>","outcome":"APPROVE"}` (answers the order after the decision) |

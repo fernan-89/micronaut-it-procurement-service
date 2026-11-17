@@ -7,6 +7,7 @@ import io.micronaut.core.annotation.Introspected;
 import io.micronaut.core.annotation.Nullable;
 import io.micronaut.http.HttpStatus;
 import io.micronaut.http.annotation.Body;
+import io.micronaut.http.annotation.Get;
 import io.micronaut.http.annotation.Header;
 import io.micronaut.http.annotation.PathVariable;
 import io.micronaut.http.annotation.Post;
@@ -55,6 +56,15 @@ public class WorkflowApprovalServiceAdapter implements ApprovalServicePort {
                 .onErrorMap(WorkflowApprovalServiceAdapter::relayConflict);
     }
 
+    @Override
+    public Mono<Boolean> policyExists(UUID organisationId, UUID policyId) {
+        log.debug("[INTEGRATION] Checking that ApprovalPolicy {} exists", policyId);
+        return apiClient.retrievePolicy(policyId, organisationId.toString())
+                .map(policy -> true)
+                .onErrorResume(error -> error instanceof HttpClientResponseException http && http.getStatus() == HttpStatus.NOT_FOUND, error -> Mono.just(false))
+                .onErrorMap(WorkflowApprovalServiceAdapter::unavailable);
+    }
+
     static Throwable relayConflict(Throwable error) {
         if (error instanceof HttpClientResponseException http && http.getStatus() == HttpStatus.CONFLICT) {
             String reason = http.getResponse().getBody(Map.class).map(body -> body.get("detail")).map(String::valueOf).orElse("The approval service refused the decision.");
@@ -80,6 +90,10 @@ public class WorkflowApprovalServiceAdapter implements ApprovalServicePort {
     @Serdeable
     @Introspected
     record ApprovalRequestApiResponse(UUID id, String status) {}
+
+    @Serdeable
+    @Introspected
+    record PolicyApiResponse(UUID id) {}
 }
 
 /** Declarative Micronaut HTTP Client for the workflow-approval Service Domain. The 'id' maps to the configuration in application.yml. */
@@ -92,6 +106,9 @@ interface WorkflowApprovalApiClient {
             @Header("X-Executor") String executor,
             @Body WorkflowApprovalServiceAdapter.InitiateApprovalRequestApiRequest request
     );
+
+    @Get("/policy/{id}/retrieve")
+    Mono<WorkflowApprovalServiceAdapter.PolicyApiResponse> retrievePolicy(@PathVariable UUID id, @Header("X-Tenant-Id") String tenantId);
 
     @Put("/{id}/decision/capture")
     Mono<WorkflowApprovalServiceAdapter.ApprovalRequestApiResponse> captureDecision(

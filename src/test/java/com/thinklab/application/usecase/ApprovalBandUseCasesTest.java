@@ -3,11 +3,13 @@ package com.thinklab.application.usecase;
 import com.thinklab.application.dto.request.InitiateApprovalBandRequest;
 import com.thinklab.application.mapper.ApprovalBandMapper;
 import com.thinklab.domain.exception.ApprovalBandNotFoundException;
+import com.thinklab.domain.exception.ApprovalUnavailableException;
 import com.thinklab.domain.exception.DuplicateApprovalBandException;
 import com.thinklab.domain.exception.InvalidPurchaseOrderStatusException;
 import com.thinklab.domain.exception.ProcurementAccessDeniedException;
 import com.thinklab.domain.model.ApprovalBand;
 import com.thinklab.domain.model.Money.Currency;
+import com.thinklab.domain.port.ApprovalServicePort;
 import com.thinklab.domain.port.HashServicePort;
 import com.thinklab.domain.repository.ApprovalBandRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -26,6 +28,7 @@ import java.time.ZoneOffset;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doReturn;
@@ -42,11 +45,14 @@ class ApprovalBandUseCasesTest {
     private final Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);
     private HashServicePort hash;
     private ApprovalBandRepository repository;
+    private ApprovalServicePort approval;
 
     @BeforeEach
     void setUp() {
         hash = mock(HashServicePort.class);
         repository = mock(ApprovalBandRepository.class);
+        approval = mock(ApprovalServicePort.class);
+        when(approval.policyExists(any(), any())).thenReturn(Mono.just(true));
         when(hash.generateSovereignId(any())).thenAnswer(call -> Mono.just(UUID.randomUUID()));
         when(repository.create(any())).thenAnswer(call -> Mono.just(call.getArgument(0)));
     }
@@ -58,7 +64,7 @@ class ApprovalBandUseCasesTest {
     @Test
     @DisplayName("a band is made with its lower bound in minor units, answered with it in major units; a requester is refused and an amount with three decimals is refused")
     void initiate() {
-        InitiateApprovalBandUseCase initiate = new InitiateApprovalBandUseCase(hash, repository, clock);
+        InitiateApprovalBandUseCase initiate = new InitiateApprovalBandUseCase(hash, repository, approval, clock);
 
         StepVerifier.create(initiate.execute(org, new InitiateApprovalBandRequest(Currency.EUR, new BigDecimal("2500.50"), policy), "admin", "ENGINEER"))
                 .assertNext(band -> {
@@ -80,7 +86,7 @@ class ApprovalBandUseCasesTest {
     void initiateDuplicate() {
         doReturn(Mono.error(new DuplicateApprovalBandException("already"))).when(repository).create(any());
 
-        StepVerifier.create(new InitiateApprovalBandUseCase(hash, repository, clock)
+        StepVerifier.create(new InitiateApprovalBandUseCase(hash, repository, approval, clock)
                 .execute(org, new InitiateApprovalBandRequest(Currency.BRL, BigDecimal.ZERO, policy), "admin", null)).expectError(DuplicateApprovalBandException.class).verify();
     }
 
@@ -125,5 +131,23 @@ class ApprovalBandUseCasesTest {
         Constructor<ApprovalBandMapper> constructor = ApprovalBandMapper.class.getDeclaredConstructor();
         constructor.setAccessible(true);
         assertThrows(InvocationTargetException.class, constructor::newInstance);
+    }
+
+    @Test
+    @DisplayName("a policy the approval service does not know makes no band (400, nothing saved, the id never repeated); an approval service that is down makes no band either")
+    void unknownPolicy() {
+        InitiateApprovalBandUseCase initiate = new InitiateApprovalBandUseCase(hash, repository, approval, clock);
+        InitiateApprovalBandRequest request = new InitiateApprovalBandRequest(Currency.BRL, BigDecimal.ZERO, policy);
+
+        doReturn(Mono.just(false)).when(approval).policyExists(org, policy);
+        StepVerifier.create(initiate.execute(org, request, "admin", "ENGINEER"))
+                .expectErrorSatisfies(error -> {
+                    assertEquals(IllegalArgumentException.class, error.getClass());
+                    assertFalse(error.getMessage().contains(policy.toString()));
+                }).verify();
+        doReturn(Mono.error(new ApprovalUnavailableException("down"))).when(approval).policyExists(org, policy);
+        StepVerifier.create(initiate.execute(org, request, "admin", "ENGINEER")).expectError(ApprovalUnavailableException.class).verify();
+
+        verify(repository, never()).create(any());
     }
 }

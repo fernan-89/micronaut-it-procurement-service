@@ -102,4 +102,18 @@ class WorkflowApprovalServiceAdapterTest {
         StepVerifier.create(adapter.initiateApprovalRequest(org, order, requester, policy, "buyer")).expectError(ApprovalUnavailableException.class).verify();
         StepVerifier.create(adapter.captureDecision(UUID.randomUUID(), UUID.randomUUID(), DecisionOutcome.REJECT, "a")).expectError(ApprovalUnavailableException.class).verify();
     }
+
+    @Test
+    @DisplayName("policyExists is true for a policy the approval service returns, false for a 404, and an approval service that is down or refuses is unavailable, never a false")
+    void policyExists() {
+        UUID policy = UUID.randomUUID();
+        var notFound = new HttpClientResponseException("Not Found", HttpResponse.status(HttpStatus.NOT_FOUND));
+        var badRequest = new HttpClientResponseException("Bad Request", HttpResponse.status(HttpStatus.BAD_REQUEST));
+        when(client.retrievePolicy(policy, org.toString())).thenReturn(Mono.just(new WorkflowApprovalServiceAdapter.PolicyApiResponse(policy)), Mono.error(notFound), Mono.error(badRequest), Mono.error(new IllegalStateException("down")));
+
+        StepVerifier.create(adapter.policyExists(org, policy)).expectNext(true).verifyComplete();
+        StepVerifier.create(adapter.policyExists(org, policy)).expectNext(false).verifyComplete();
+        StepVerifier.create(adapter.policyExists(org, policy)).expectError(ApprovalUnavailableException.class).verify();
+        StepVerifier.create(adapter.policyExists(org, policy)).expectError(ApprovalUnavailableException.class).verify();
+    }
 }

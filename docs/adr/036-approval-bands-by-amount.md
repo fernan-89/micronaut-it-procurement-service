@@ -17,4 +17,4 @@ Every purchase order was sent for approval against one policy, `thinklab.procure
 
 ## Consequences
 - Positive: the quorum follows the amount; bands are data, not deployment; the approval service is unchanged.
-- Negative: a deployment that never provisioned a band can no longer submit (the e2e provisioning creates the band at 0); a policy id is not checked against the approval service when a band is made (a wrong id shows up as a refused submission); changing an amount means cancelling the order.
+- Negative: a deployment that never provisioned a band can no longer submit (the e2e provisioning creates the band at 0); a band is made only if the approval service knows the policy (checked in the tenant of the band; 400 when it does not, 502 when the approval service cannot be reached), so making a band now depends on the approval service being up (decided 2026-11-17; before that a wrong id showed up as a refused submission); changing an amount means cancelling the order.
