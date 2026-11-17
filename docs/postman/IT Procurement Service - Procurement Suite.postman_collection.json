@@ -3024,10 +3024,55 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.environment.set('poBandPolicyId', pm.variables.replaceIn('{{$guid}}'));"
+                  "pm.environment.set('poApproverId', pm.variables.replaceIn('{{$guid}}'));",
+                  "pm.environment.set('poUnknownPolicyId', pm.variables.replaceIn('{{$guid}}'));"
                 ]
               }
             },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 201 Created', () => pm.response.to.have.status(201));",
+                  "pm.environment.set('poBandPolicyId', pm.response.json().id);"
+                ]
+              }
+            }
+          ],
+          "name": "00. Make an approval policy on the approval service (the bands below point at it)",
+          "request": {
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{poOrganisationId}}"
+              }
+            ],
+            "method": "POST",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"PURCHASE-ORDER\",\n  \"requiredApprovals\": 1,\n  \"eligibleApproverIds\": [\"{{poApproverId}}\"]\n}"
+            },
+            "url": {
+              "host": [
+                "{{approval_url}}"
+              ],
+              "path": [
+                "workflow-approval",
+                "v1",
+                "policy",
+                "initiate"
+              ],
+              "raw": "{{approval_url}}/workflow-approval/v1/policy/initiate"
+            }
+          }
+        },
+        {
+          "event": [
             {
               "listen": "test",
               "script": {
@@ -3080,6 +3125,54 @@
             "body": {
               "mode": "raw",
               "raw": "{\n  \"currency\": \"BRL\",\n  \"fromAmount\": 1000.00,\n  \"policyId\": \"{{poBandPolicyId}}\"\n}"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 400: a policy the approval service does not know makes no band', () => pm.response.to.have.status(400));",
+                  "pm.test('the policy id is not repeated', () => pm.expect(pm.response.text()).to.not.include(pm.environment.get('poUnknownPolicyId')));"
+                ]
+              }
+            }
+          ],
+          "name": "01b. Make a band with a policy that does not exist (400)",
+          "request": {
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{poOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "POST",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currency\": \"BRL\",\n  \"fromAmount\": 7,\n  \"policyId\": \"{{poUnknownPolicyId}}\"\n}"
+            },
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-procurement",
+                "v1",
+                "band",
+                "initiate"
+              ],
+              "raw": "{{base_url}}/it-procurement/v1/band/initiate"
             }
           }
         },
